@@ -1,4 +1,4 @@
-# 3D 3-Optimal Ascent Trajectory Optimization (ICLOCS2 + IPOPT)
+# 3D 3S-Optimal Ascent Trajectory Optimization (ICLOCS2 + IPOPT)
 
 [![MATLAB](https://img.shields.io/badge/MATLAB-R2021b%2B-blue.svg)](https://www.mathworks.com/products/matlab.html)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
