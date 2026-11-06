@@ -14,8 +14,9 @@
 %  or implied, including but not limited to the warranties of accuracy or
 %  fitness for a particular purpose.
 %  ------------------------------------------------------------------------
-%  This code is an attempt to adapt the problem described in the report
-%  for the Launchers and Re-entry course at Alma Mater Studiorum - UniBo,
+%  This work represents an evolution and adaptation of a project originally 
+%  developed in collaboration with Lisa Puttini for the Launchers and 
+%  Re-entry course at Alma Mater Studiorum - Università di Bologna,
 %  taught by Prof. Marco Sagliano.
 %  The original report addressed the problem by solving a TPBVP using primer
 %  vector theory (indirect method) via MATLAB's built-in functions.
