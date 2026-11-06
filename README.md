@@ -8,7 +8,7 @@
 
 This repository contains a MATLAB-based framework for solving the **3D 3-Degree-of-Freedom (3-DOF) Optimal Ascent Trajectory** problem for a multi-stage launch vehicle. 
 
-This work represents an attempt to adapt and expand upon the problem described in the report for the *Launchers and Re-entry* course at Alma Mater Studiorum - UniBo, taught by Prof. Marco Sagliano. While the original report addressed the problem by solving a Two-Point Boundary Value Problem (TPBVP) using **Primer Vector Theory** (indirect method) via MATLAB's built-in functions, this script employs a **direct collocation method** via **ICLOCS2** and **IPOPT** to automatically optimize the trajectory subject to complex dynamic constraints and boundary conditions.
+This work represents an evolution and adaptation of a project originally developed in collaboration with Lisa Puttini for the Launchers and Re-entry course at Alma Mater Studiorum - Università di Bologna, taught by Prof. Marco Sagliano. While the original report addressed the problem by solving a Two-Point Boundary Value Problem (TPBVP) using **Primer Vector Theory** (indirect method) via MATLAB's built-in functions, this script employs a **direct collocation method** via **ICLOCS2** and **IPOPT** to automatically optimize the trajectory subject to complex dynamic constraints and boundary conditions.
 
 ---
 
