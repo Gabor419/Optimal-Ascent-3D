@@ -1,0 +1,108 @@
+function options = settings_ascent(varargin)
+%  ========================================================================
+%  AUTHOR  : Gabriele Borghini - 2026
+%  ========================================================================
+%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
+%
+%  PROPRIETARY AND CONFIDENTIAL:
+%  The source code contained herein is the property of Gabriele Borghini.
+%  It may not be copied, modified, distributed, or disclosed to any third 
+%  party without the express written consent of the author.
+%
+%  DISCLAIMER:
+%  This software is provided "as is", without warranty of any kind, express
+%  or implied, including but not limited to the warranties of accuracy or
+%  fitness for a particular purpose.
+%  ------------------------------------------------------------------------
+%  ICLOCS2 + IPOPT:
+%  Solver settings for ascent trajectory optimization
+%
+%  Usage:
+%   options = problem.settings(30)     -> h-method, 30 nodes
+%   options = problem.settings(5, 4)   -> hp-LGR, 5 segments degree 4
+
+%% Transcription Method
+options.transcription    = 'direct_collocation';
+options.min_res_mode     = 'alternating';
+options.min_res_priority = 'low_res_error';
+options.resCostWeight    = [];
+options.errortype        = 'local_abs';
+
+%% Discretization Method
+options.discretization = 'hermite';
+options.resultRep      = 'default';
+
+%% Derivative Generation
+options.derivatives      = 'numeric';
+% options.derivatives = 'adigator';
+options.adigatorPath = 'D:\OptimalControl\adigator-master';
+options.perturbation.H   = [];
+options.perturbation.J   = [];
+
+%% NLP Solver
+options.NLPsolver = 'ipopt';
+
+% IPOPT settings
+options.ipopt.tol                         = 1e-7;
+options.ipopt.constr_viol_tol             = 1e-7;
+options.ipopt.acceptable_tol              = 1e-6;
+options.ipopt.acceptable_constr_viol_tol  = 1e-6;
+options.ipopt.acceptable_iter             = 15;
+options.ipopt.max_iter                    = 1000;
+options.ipopt.print_level                 = 5;
+options.ipopt.mu_strategy                 = 'adaptive';
+% options.ipopt.hessian_approximation       = 'limited-memory';
+options.ipopt.hessian_approximation       = 'exact';
+options.ipopt.limited_memory_max_history  = 6;
+options.ipopt.limited_memory_max_skipping = 1;
+
+% fmincon settings (fallback)
+options.fmincon.optimoptions = optimoptions('fmincon', 'Display', 'iter', ...
+    'SpecifyObjectiveGradient', true, 'SpecifyConstraintGradient', true, ...
+    'MaxIterations', 5000);
+options.fmincon.hessian_approximation = 'exact';
+
+%% Meshing Strategy
+options.meshstrategy    = 'mesh_refinement';
+% options.meshstrategy    = 'fixed';
+options.MeshRefinement  = 'Auto';
+options.MRstrategy      = 'aggressive';
+options.maxMRiter       = 10;
+options.disContInputs   = 0;
+options.mintimeinterval = 1e-8;
+options.maxtimeinterval = inf;
+options.tau             = 0;
+
+%% Other Settings
+options.start           = 'Cold';
+options.scaling         = 0;
+options.reorderLGR      = 0;
+options.resminEarlyStop = 0;
+options.ECH.enabled     = 0;
+options.ECH.buffer_pct  = 0.1;
+options.regstrategy     = 'off';
+
+%% Auto h/hp selection (DO NOT MODIFY - from original ICLOCS2 template)
+if nargin == 2
+    if strcmp(varargin{2}, 'h')
+        options.nodes          = varargin{1};
+        options.discretization = 'hermite';
+    else
+        if length(varargin{1}) == 1
+            options.nsegment = varargin{1};
+            options.pdegree  = varargin{2};
+        else
+            options.tau_segment = varargin{1};
+            options.npsegment   = varargin{2};
+        end
+        options.discretization = 'hpLGR';
+    end
+else
+    options.nodes = varargin{1};
+end
+
+%% Output Settings
+options.print.time                 = 1;
+options.print.relative_local_error = 1;
+options.print.cost                 = 1;
+options.plot                       = 0;   

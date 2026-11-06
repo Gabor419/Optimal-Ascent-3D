@@ -1,0 +1,102 @@
+function dx = ascent_dynamics(x, u, ~, t, vdat)
+% =========================================================================
+%  AUTHOR  : Gabriele Borghini - 2026
+% =========================================================================
+%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
+%
+%  PROPRIETARY AND CONFIDENTIAL:
+%  The source code contained herein is the property of Gabriele Borghini.
+%  It may not be copied, modified, distributed, or disclosed to any third 
+%  party without the express written consent of the author.
+%
+%  DISCLAIMER:
+%  This software is provided "as is", without warranty of any kind, express
+%  or implied, including but not limited to the warranties of accuracy or
+%  fitness for a particular purpose.
+%  ------------------------------------------------------------------------
+%  ICLOCS2 + IPOPT:
+%  3D Dynamics (rotating sphere) of the ascent phase of a launcher (3S).
+%  Simplified version for ADIGATOR:
+%   - sin/cos/tan are only computed once as well as the constant terms
+%   - T and mdot -> T1 + dT12*s1 + dT23*s2 (less computations)
+%   - r >= R_earth is limited by the bounds (xl(1) = R_earth)
+%
+%  State:   x = [r, theta, phi, v, gamma, chi, m_state] [km, rad, rad, km/s, rad, rad, t]
+%  Control: u = [alpha, beta]                           [rad]
+%
+%  m_state = mass "without jumps": only decrasing for the propellant burnt.
+%  Phisical mass m = m_state - ms1*s1(t) - ms2*s2(t), with s_i scaling tanh()
+% =========================================================================
+
+mu      = vdat.mu;
+g0      = vdat.g0;          % [km/s^2]
+R_earth = vdat.R_earth;
+H       = vdat.H;
+omega   = 7.2921e-5;
+
+%% --- SCALAR CONSTANTS ---
+T1  = vdat.T(1);  T2  = vdat.T(2);  T3  = vdat.T(3);
+md1 = T1/(vdat.Isp(1)*g0);
+md2 = T2/(vdat.Isp(2)*g0);
+md3 = T3/(vdat.Isp(3)*g0);
+kD  = 0.5*vdat.rho0*vdat.Cd*vdat.A_ref;      % 0.5*rho0*Cd*A_ref
+w2  = omega^2;
+tw  = 2*omega;
+
+r     = x(:,1);  phi   = x(:,3);  v   = x(:,4);
+gamma = x(:,5);  chi   = x(:,6);  mst = x(:,7);
+alpha = u(:,1);  beta  = u(:,2);
+t     = t(:) .* ones(size(r));
+
+%% --- STAGING ---
+s1 = 0.5*(1 + tanh((t - vdat.t1)/vdat.w));   % 0 -> 1 at separation 1
+s2 = 0.5*(1 + tanh((t - vdat.t2)/vdat.w));   % 0 -> 1 at separation 2
+
+T    = T1  + (T2-T1)*s1   + (T3-T2)*s2;      % == T1(1-s1)+T2(s1-s2)+T3 s2
+mdot = md1 + (md2-md1)*s1 + (md3-md2)*s2;
+m    = mst - vdat.ms(1)*s1 - vdat.ms(2)*s2;  % Phisical mass
+
+%% --- TRIGONOMETRIC FUNCTIONS ---
+sa = sin(alpha);  ca = cos(alpha);
+sg = sin(gamma);  cg = cos(gamma);
+sc = sin(chi);    cc = cos(chi);
+sp = sin(phi);    cp = cos(phi);
+db = beta - chi;
+cd = cos(db);                                % cos(chi-beta) = cos(beta-chi)
+sd = sin(db);                                % sin(beta-chi)
+
+%% --- ATMOSPHERE AND DRAG ---
+v2  = v.^2 + 1e-8;                           % v_s^2
+v_s = sqrt(v2);                              % smooth version of max(v,eps)
+D   = (kD .* exp(-(r - R_earth) ./ H)) .* v2;
+
+%% --- THRUST VECTOR PROJECTIONS ---
+cacd    = ca.*cd;
+T_v     = T .* (sa.*sg + cacd.*cg);
+T_gamma = T .* (sa.*cg - cacd.*sg);
+T_chi   = T .* (ca.*sd);
+
+%% --- GRAVITY, CORIOLIS, CENTRIFUGAL ---
+g   = mu ./ r.^2;
+twv = tw .* v_s;
+w2r = (w2 .* r) .* cp;
+
+Cor_gamma  = (twv .* cp) .* sc;
+Cor_chi    = twv .* (sp.*cg - cp.*sg.*cc);
+Cent_v     = w2r .* (sg.*cp - cg.*sp.*cc);
+Cent_gamma = w2r .* (cg.*cp + sg.*sp.*cc);
+Cent_chi   = (w2r .* sp) .* sc;
+
+%% --- EQUATIONS OF MOTION ---
+vcg    = v_s .* cg;
+vr     = v2 ./ r;
+dr     = v_s .* sg;
+dtheta = (vcg .* sc) ./ (r .* cp);
+dphi   = (vcg .* cc) ./ r;
+dv     = (T_v - D)./m - g.*sg + Cent_v;
+dgamma = (T_gamma./m + (vr - g).*cg + Cor_gamma + Cent_gamma) ./ v_s;
+dchi   = (T_chi./m + ((vr.*cg).*cg).*sc.*(sp./cp) + Cor_chi + Cent_chi) ./ vcg;
+dm     = -mdot;
+
+dx = [dr, dtheta, dphi, dv, dgamma, dchi, dm];
+end
