@@ -17,6 +17,7 @@ This work represents an evolution and adaptation of a project originally develop
 - **Direct Collocation Architecture:** Formulates the trajectory optimization as a Non-Linear Programming (NLP) problem, solved efficiently using IPOPT.
 - **3D Rotating Earth Dynamics:** Full 3D equations of motion including gravity, Coriolis and centrifugal accelerations, aerodynamic drag, and spherical Earth kinematics.
 - **Multi-Stage Modeling:** Explicit handling of 3 stages with continuous mass/thrust transitions utilizing smooth step functions ($\tanh$).
+- **Ambiguity-Free Control Formulation:** Employs normalized local Cartesian thrust vector components ($\mathbf{u} = [u_x, u_y, u_z]$) enforced by a unit magnitude equality constraint, eliminating trigonometric steering singularities.
 - **Verification Pipeline:** Includes built-in `ode45` simulation verification to validate the optimized control sequence against open-loop propagation.
 - **Advanced Post-Processing:** Automated extraction of Cartesian costates (primer vector components), Hamiltonian evaluation, local (NEU), and global (ECEF) trajectory visualizations.
 
@@ -26,7 +27,7 @@ This work represents an evolution and adaptation of a project originally develop
 
 - `main.m` — Main script configuring vehicle data, executing the optimization solver, verifying via ODE simulation, and generating comprehensive analysis plots.
 - `ascent.m` — Problem definition file containing boundaries, states, inputs, cost function definitions, and staging configurations for ICLOCS2.
-- `ascent_dynamics.m` — 3-DOF equations of motion of the launch vehicle in spherical rotating coordinates.
+- `ascent_dynamics.m` — 3-DOF equations of motion of the launch vehicle in spherical rotating coordinates driven by local Cartesian thrust components.
 - `settings_ascent.m` — Configuration file for ICLOCS2, containing transcription choices, meshing parameters, and customized IPOPT solver settings.
 
 ---
