@@ -2,35 +2,45 @@
 %% PROJECT : 3D 3-DOF Optimal Ascent (ICLOCS2 + IPOPT)
 %  AUTHOR  : Gabriele Borghini - 2026
 % =========================================================================
-%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
-%
-%  PROPRIETARY AND CONFIDENTIAL:
+% PROPRIETARY AND CONFIDENTIAL:
 %  The source code contained herein is the property of Gabriele Borghini.
 %  It may not be copied, modified, distributed, or disclosed to any third 
 %  party without the express written consent of the author.
 %
-%  DISCLAIMER:
+% DISCLAIMER:
 %  This software is provided "as is", without warranty of any kind, express
 %  or implied, including but not limited to the warranties of accuracy or
 %  fitness for a particular purpose.
-%  ------------------------------------------------------------------------
-%  This work represents an evolution and adaptation of a project originally 
-%  developed in collaboration with Lisa Puttini for the Launchers and 
-%  Re-entry course at Alma Mater Studiorum - Università di Bologna,
+% 
+% NOTE ON ACADEMIC CONTEXT:
+%  This code is developed solely for academic research, advanced astrodynamics 
+%  studies, and educational purposes at Alma Mater Studiorum - Università di 
+%  Bologna.
+% -------------------------------------------------------------------------
+% DESCRIPTION:
+%  This code is an attempt to adapt the problem described in the report
+%  for the Launchers and Re-entry course at Alma Mater Studiorum - UniBo,
 %  taught by Prof. Marco Sagliano.
+% 
 %  The original report addressed the problem by solving a TPBVP using primer
 %  vector theory (indirect method) via MATLAB's built-in functions.
 %  This script instead employs a direct solver (IPOPT via ICLOCS2) to 
 %  automatically optimize the trajectory given the constraints and boundary 
 %  conditions.
 % 
-%  NOTE ON GEOGRAPHIC/LAUNCH SITE SELECTION:
+%  Final validation and open-loop verification of the optimal 
+%  solution are performed via MATLAB's ode45 integrator with strict tolerances 
+%  (RelTol/AbsTol less or equal to 10e-8). 
+% 
+% NOTE ON GEOGRAPHIC/LAUNCH SITE SELECTION:
 %  The choice of the Semnan Space Centre as the launch facility is strictly 
 %  driven by physical, geometric, and dynamic problem requirements (such as 
 %  latitude, inclination, and trajectory optimization mechanics). This code 
 %  is developed solely for academic research and educational purposes, 
 %  carrying no political or strategic affiliation.
-%  ========================================================================
+% =========================================================================
+%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
+% =========================================================================
 
 clc; clear; close all; format compact;
 
@@ -38,6 +48,8 @@ if exist('utilities','dir'),    addpath(genpath('utilities'));
 elseif exist('../utilities','dir'), addpath(genpath('../utilities')); end
 addpath(genpath('D:\OptimalControl\ICLOCS-master\src'))
 addpath(genpath('D:\OptimalControl\ICLOCS-master\usr'))
+addpath(genpath('D:\OptimalControl\adigator-master'));
+delete('Func_*_ascent_dynamics.m');
 
 %% --- VEHICLE DATA ---
 m0_tot = 160061/1000;  g0 = 9.80665;
@@ -53,7 +65,7 @@ R_earth = 6378.1;     % [km]
 
 %% --- PROBLEM ---
 [problem, guess] = ascent(m0_tot, stages, Isp, Thrust, g0, lon0, lat0, chi0);
-options = problem.settings(600);        % 600 points (mesh refinement)
+options = problem.settings(100);        % 100 points (mesh refinement)
 % options.scaling = 1;                  % Suggested
 profile on;
 [solution, MRHistory] = solveMyProblem(problem, guess, options);
@@ -61,7 +73,8 @@ profile off;
 %%
 vd   = problem.data;
 Tn   = solution.T(:);  Un = solution.U;
-uFun = @(t) interp1(Tn, Un, t, 'linear', 'extrap');
+uRaw = @(t) interp1(Tn, Un, t, 'linear', 'extrap');
+uFun = @(t) uRaw(t) ./ sqrt(sum(uRaw(t).^2, 2));
 rhs  = @(t,x) ascent_dynamics(x.', uFun(t), [], t, vd).';
 
 odeopt = odeset('RelTol',1e-10,'AbsTol',1e-10*ones(1,7));
@@ -73,13 +86,13 @@ t1 = vd.t1;  t2 = vd.t2;
 s1 = @(t) 0.5*(1+tanh((t-t1)/vd.w));
 s2 = @(t) 0.5*(1+tanh((t-t2)/vd.w));
 
-% phisical mass subtraction
+% physical mass subtraction
 m_phys_sol = solution.X(:,7) - vd.ms(1)*s1(solution.T) - vd.ms(2)*s2(solution.T);
 m_phys_sim = xv(:,7)         - vd.ms(1)*s1(tv)          - vd.ms(2)*s2(tv);
 
 tf = solution.tf;
 fprintf('\n=== ASCENT RESULTS ===\n');
-fprintf('tf               : %.3f s  (burn stadio 3: %.3f s)\n', tf, tf - t2);
+fprintf('tf               : %.3f s  (S3 burn: %.3f s)\n', tf, tf - t2);
 fprintf('Final altitude   : %.3f km\n', solution.X(end,1) - R_earth);
 fprintf('Rel. velocity    : %.4f km/s\n', solution.X(end,4));
 fprintf('Final γ          : %.4f deg\n', rad2deg(solution.X(end,5)));
@@ -140,7 +153,7 @@ theme 'light';
 
 % 3. Pitch Angle vs Time
 subplot(2, 2, 3); hold on;
-plot(t_opt, rad2deg(solution.U(:,1)), 'm', 'LineWidth', 2);
+plot(t_opt, rad2deg(asin(max(-1, min(1, solution.U(:,1))))), 'm', 'LineWidth', 2);
 xline(t1, 'k--', 'Stage 1 Sep', 'LabelHorizontalAlignment', 'left');
 xline(t2, 'k--', 'Stage 2 Sep', 'LabelHorizontalAlignment', 'left');
 grid on; xlabel('Time [s]'); ylabel('Pitch \alpha [deg]');
@@ -156,7 +169,7 @@ grid on; xlabel('Time [s]'); ylabel('Mass [kg]');
 title('Vehicle Physical Mass vs Time'); 
 theme 'light';
 
-%% --- COSTATES (CARTESIANI) AND HAMILTONIAN ---
+%% --- COSTATES (CARTESIAN), CONTROLS AND HAMILTONIAN ---
 if isfield(solution, 'multipliers') && isfield(solution.multipliers, 'lambda_1toN')
     lambda_sph = solution.multipliers.lambda_1toN;
     N_opt = length(t_opt);
@@ -231,6 +244,19 @@ if isfield(solution, 'multipliers') && isfield(solution.multipliers, 'lambda_1to
     title('Velocity Costates / Primer Vector (\lambda_{vx}, \lambda_{vy}, \lambda_{vz})');
     theme 'light';
     
+    figure('Name', 'Controls vs Time', 'Color', 'w'); hold on;
+    u_norm = sqrt(sum(solution.U.^2, 2));
+    plot(t_opt, solution.U(:,1), 'b', 'LineWidth', 2);
+    plot(t_opt, solution.U(:,2), 'r', 'LineWidth', 2);
+    plot(t_opt, solution.U(:,3), 'g', 'LineWidth', 2);
+    plot(t_opt, u_norm, 'k:', 'LineWidth', 1.5);
+    xline(t1, 'k--', 'Stage 1 Sep', 'LabelHorizontalAlignment', 'left', 'HandleVisibility', 'off');
+    xline(t2, 'k--', 'Stage 2 Sep', 'LabelHorizontalAlignment', 'left', 'HandleVisibility', 'off');
+    grid on; xlabel('Time [s]'); ylabel('Control components');
+    legend('u_x (Up)', 'u_y (North)', 'u_z (East)', '||u||', 'Location', 'best');
+    title('Thrust Direction Controls (u_x, u_y, u_z) vs Time');
+    theme 'light';
+    
     % --- C) Hamiltonian ---
     H_tot = zeros(N_opt, 1);
     
@@ -266,11 +292,11 @@ if isfield(solution, 'multipliers') && isfield(solution.multipliers, 'lambda_1to
         ylim([h_min - 0.1*abs(h_min), h_max + 0.1*abs(h_max)]);
     end
 else
-    fprintf('Moltiplicatori non trovati nella soluzione.\n');
+    fprintf('Multipliers non found in the solution.\n');
 end
 
 %% --- 3D TRAJECTORY PLOT (LOCAL CURVILINEAR NEU) ---
-% Spherical coordinate from sim. (ode45)
+% Spherical coordinates from sim. (ode45)
 r_sim     = xv(:,1);
 theta_sim = xv(:,2); 
 phi_sim   = xv(:,3); 
@@ -300,18 +326,18 @@ legend('Trajectory (IPOPT)', 'Trajectory (ode45)', 'Launch Pad (0,0,0)', 'Stage 
 view(45, 25);
 theme 'light';
 
-%% --- 3D TRAJECTORY PLOT (GLOBALE CON ORBITA TARGET) ---
-% Coordinate cartesiane ECEF (Ottimizzazione IPOPT)
+%% --- 3D TRAJECTORY PLOT (GLOBAL WITH TARGET ORBIT) ---
+% ECEF Cartesian coordinates (IPOPT Optimization)
 X = r_opt .* cos(phi_opt) .* cos(theta_opt);
 Y = r_opt .* cos(phi_opt) .* sin(theta_opt);
 Z = r_opt .* sin(phi_opt);
 
-% Coordinate cartesiane ECEF (Simulazione ode45)
+% ECEF Cartesian coordinates (ode45 Simulation)
 X_sim = r_sim .* cos(phi_sim) .* cos(theta_sim);
 Y_sim = r_sim .* cos(phi_sim) .* sin(theta_sim);
 Z_sim = r_sim .* sin(phi_sim);
 
-% --- Generazione Orbita Target passante per il punto finale ---
+% --- Target Orbit generation passing through the final point ---
 r_f = r_opt(end);
 th_f = theta_opt(end);
 phi_f = phi_opt(end);
@@ -319,7 +345,7 @@ v_f = v_opt(end);
 gam_f = gamma_opt(end);
 chi_f = chi_opt(end);
 
-% Matrice di rotazione locale->ECEF al punto finale
+% Local->ECEF rotation matrix at the final point
 R_loc2f = [cos(phi_f)*cos(th_f), -sin(phi_f)*cos(th_f), -sin(th_f);
            cos(phi_f)*sin(th_f), -sin(phi_f)*sin(th_f),  cos(th_f);
            sin(phi_f),           cos(phi_f),           0];
@@ -327,21 +353,21 @@ v_local = v_f * [sin(gam_f); cos(gam_f)*cos(chi_f); cos(gam_f)*sin(chi_f)];
 V_ecef_f = R_loc2f * v_local;
 R_ecef_f = [X(end); Y(end); Z(end)];
 
-% Momento angolare specifico (h = r x v) per definire il piano orbitale
+% Specific angular momentum (h = r x v) to define the orbital plane
 h_vec = cross(R_ecef_f, V_ecef_f);
-n_orbit = h_vec / norm(h_vec); % Normale al piano orbitale
+n_orbit = h_vec / norm(h_vec); % Orbital plane normal
 
-% Vettori nel piano orbitale per tracciare l'anello dell'orbita
-% Troviamo due vettori ortogonali nel piano dell'orbita
+% In-plane orbital vectors to trace the orbit ring
+% Find two orthogonal vectors in the orbital plane
 u_inplane1 = R_ecef_f / norm(R_ecef_f);
 u_inplane2 = cross(n_orbit, u_inplane1);
 
-% Raggio approssimato dell'orbita target (o semiasse maggiore)
+% Approximate target orbit radius (or semi-major axis)
 a_target = r_f; 
 theta_orbit = linspace(0, 2*pi, 300);
 Orbit_ECEF = zeros(300, 3);
 for i = 1:300
-    % Cerchio/ellisse di raggio r_f nel piano orbitale
+    % Circle/ellipse of radius r_f in the orbital plane
     r_point = a_target * (u_inplane1 * cos(theta_orbit(i)) + u_inplane2 * sin(theta_orbit(i)));
     Orbit_ECEF(i, :) = r_point';
 end
@@ -351,12 +377,12 @@ figure('Name', '3D Trajectory Global with Target Orbit', 'Color', 'w'); hold on;
 surf(X_earth * R_earth, Y_earth * R_earth, Z_earth * R_earth, ...
     'EdgeColor', 'none', 'FaceColor', [0.2 0.5 0.8], 'FaceAlpha', 0.3);
 
-% Plot delle traiettorie e dell'orbita target
+% Plot trajectories and target orbit
 plot3(X, Y, Z, 'r', 'LineWidth', 2.5);
 plot3(X_sim, Y_sim, Z_sim, '--', 'LineWidth', 2, 'Color', [0.5 0.5 0.5]);
 plot3(Orbit_ECEF(:,1), Orbit_ECEF(:,2), Orbit_ECEF(:,3), 'k-.', 'LineWidth', 1.5);
 
-% Marker di eventi
+% Event markers
 plot3(X(1), Y(1), Z(1), 'k^', 'MarkerFaceColor', 'w', 'MarkerSize', 8);
 % plot3(X(idx_sep1), Y(idx_sep1), Z(idx_sep1), 'ko', 'MarkerFaceColor', 'y', 'MarkerSize', 6);
 % plot3(X(idx_sep2), Y(idx_sep2), Z(idx_sep2), 'ko', 'MarkerFaceColor', 'y', 'MarkerSize', 6);

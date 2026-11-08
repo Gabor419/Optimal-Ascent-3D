@@ -1,31 +1,37 @@
-function dx = ascent_dynamics(x, u, ~, t, vdat)
-% =========================================================================
+function [dx, ceq] = ascent_dynamics(x, u, ~, t, vdat)
+%% ========================================================================
+%% PROJECT : 3D 3-DOF Optimal Ascent (ICLOCS2 + IPOPT)
 %  AUTHOR  : Gabriele Borghini - 2026
 % =========================================================================
-%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
-%
-%  PROPRIETARY AND CONFIDENTIAL:
+% PROPRIETARY AND CONFIDENTIAL:
 %  The source code contained herein is the property of Gabriele Borghini.
 %  It may not be copied, modified, distributed, or disclosed to any third 
 %  party without the express written consent of the author.
 %
-%  DISCLAIMER:
+% DISCLAIMER:
 %  This software is provided "as is", without warranty of any kind, express
 %  or implied, including but not limited to the warranties of accuracy or
 %  fitness for a particular purpose.
-%  ------------------------------------------------------------------------
-%  ICLOCS2 + IPOPT:
+% 
+% NOTE ON ACADEMIC CONTEXT:
+%  This code is developed solely for academic research, advanced astrodynamics 
+%  studies, and educational purposes at Alma Mater Studiorum - Università di 
+%  Bologna.
+% -------------------------------------------------------------------------
+% DESCRIPTION:
 %  3D Dynamics (rotating sphere) of the ascent phase of a launcher (3S).
-%  Simplified version for ADIGATOR:
+%  Optimized version to help convergence:
 %   - sin/cos/tan are only computed once as well as the constant terms
 %   - T and mdot -> T1 + dT12*s1 + dT23*s2 (less computations)
 %   - r >= R_earth is limited by the bounds (xl(1) = R_earth)
 %
-%  State:   x = [r, theta, phi, v, gamma, chi, m_state] [km, rad, rad, km/s, rad, rad, t]
-%  Control: u = [alpha, beta]                           [rad]
+%  State:   x = [r, theta, phi, v, gamma, chi, m_state]  [km, rad, rad, km/s, rad, rad, t]
+%  Control: u = [ux, uy, uz]  (Local Cartesian thrust vector components)
 %
-%  m_state = mass "without jumps": only decrasing for the propellant burnt.
-%  Phisical mass m = m_state - ms1*s1(t) - ms2*s2(t), with s_i scaling tanh()
+%  m_state = mass "without jumps": only decreasing for the propellant burnt.
+%  Physical mass m = m_state - ms1*s1(t) - ms2*s2(t), with s_i scaling tanh()
+% =========================================================================
+%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
 % =========================================================================
 
 mu      = vdat.mu;
@@ -45,7 +51,7 @@ tw  = 2*omega;
 
 r     = x(:,1);  phi   = x(:,3);  v   = x(:,4);
 gamma = x(:,5);  chi   = x(:,6);  mst = x(:,7);
-alpha = u(:,1);  beta  = u(:,2);
+ux    = u(:,1);  uy    = u(:,2);  uz  = u(:,3);
 t     = t(:) .* ones(size(r));
 
 %% --- STAGING ---
@@ -54,16 +60,14 @@ s2 = 0.5*(1 + tanh((t - vdat.t2)/vdat.w));   % 0 -> 1 at separation 2
 
 T    = T1  + (T2-T1)*s1   + (T3-T2)*s2;      % == T1(1-s1)+T2(s1-s2)+T3 s2
 mdot = md1 + (md2-md1)*s1 + (md3-md2)*s2;
-m    = mst - vdat.ms(1)*s1 - vdat.ms(2)*s2;  % Phisical mass
+m    = mst - vdat.ms(1)*s1 - vdat.ms(2)*s2;  % Physical mass
 
 %% --- TRIGONOMETRIC FUNCTIONS ---
-sa = sin(alpha);  ca = cos(alpha);
 sg = sin(gamma);  cg = cos(gamma);
 sc = sin(chi);    cc = cos(chi);
 sp = sin(phi);    cp = cos(phi);
-db = beta - chi;
-cd = cos(db);                                % cos(chi-beta) = cos(beta-chi)
-sd = sin(db);                                % sin(beta-chi)
+uh = uy.*cc + uz.*sc;                        % cos(chi-beta) = cos(beta-chi)
+uc = uz.*cc - uy.*sc;                        % sin(beta-chi)
 
 %% --- ATMOSPHERE AND DRAG ---
 v2  = v.^2 + 1e-8;                           % v_s^2
@@ -71,10 +75,9 @@ v_s = sqrt(v2);                              % smooth version of max(v,eps)
 D   = (kD .* exp(-(r - R_earth) ./ H)) .* v2;
 
 %% --- THRUST VECTOR PROJECTIONS ---
-cacd    = ca.*cd;
-T_v     = T .* (sa.*sg + cacd.*cg);
-T_gamma = T .* (sa.*cg - cacd.*sg);
-T_chi   = T .* (ca.*sd);
+T_v     = T .* (ux.*sg + uh.*cg);
+T_gamma = T .* (ux.*cg - uh.*sg);
+T_chi   = T .* uc;
 
 %% --- GRAVITY, CORIOLIS, CENTRIFUGAL ---
 g   = mu ./ r.^2;
@@ -99,4 +102,5 @@ dchi   = (T_chi./m + ((vr.*cg).*cg).*sc.*(sp./cp) + Cor_chi + Cent_chi) ./ vcg;
 dm     = -mdot;
 
 dx = [dr, dtheta, dphi, dv, dgamma, dchi, dm];
+ceq  = ux.^2 + uy.^2 + uz.^2;
 end

@@ -1,25 +1,33 @@
 function options = settings_ascent(varargin)
-%  ========================================================================
+%% ========================================================================
+%% PROJECT : 3D 3-DOF Optimal Ascent (ICLOCS2 + IPOPT)
 %  AUTHOR  : Gabriele Borghini - 2026
-%  ========================================================================
-%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
-%
-%  PROPRIETARY AND CONFIDENTIAL:
+% =========================================================================
+% PROPRIETARY AND CONFIDENTIAL:
 %  The source code contained herein is the property of Gabriele Borghini.
 %  It may not be copied, modified, distributed, or disclosed to any third 
 %  party without the express written consent of the author.
 %
-%  DISCLAIMER:
+% DISCLAIMER:
 %  This software is provided "as is", without warranty of any kind, express
 %  or implied, including but not limited to the warranties of accuracy or
 %  fitness for a particular purpose.
-%  ------------------------------------------------------------------------
-%  ICLOCS2 + IPOPT:
-%  Solver settings for ascent trajectory optimization
+% 
+% NOTE ON ACADEMIC CONTEXT:
+%  This code is developed solely for academic research, advanced astrodynamics 
+%  studies, and educational purposes at Alma Mater Studiorum - Università di 
+%  Bologna.
+% -------------------------------------------------------------------------
+% DESCRIPTION:
+%  Configuration parameters for ICLOCS2 direct collocation (Hermite-Simpson transcription) 
+%  and IPOPT optimization engine tailored for 3-stage launcher ascent trajectories.
 %
 %  Usage:
 %   options = problem.settings(30)     -> h-method, 30 nodes
 %   options = problem.settings(5, 4)   -> hp-LGR, 5 segments degree 4
+% =========================================================================
+%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
+% =========================================================================
 
 %% Transcription Method
 options.transcription    = 'direct_collocation';

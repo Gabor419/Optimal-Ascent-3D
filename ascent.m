@@ -1,33 +1,39 @@
 function [problem, guess] = ascent(m0_tot, stages, Isp, Thrust, g0, lon0, lat0, chi0)
-%  ========================================================================
+%% ========================================================================
+%% PROJECT : 3D 3-DOF Optimal Ascent (ICLOCS2 + IPOPT)
 %  AUTHOR  : Gabriele Borghini - 2026
-%  ========================================================================
-%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
-%
-%  PROPRIETARY AND CONFIDENTIAL:
+% =========================================================================
+% PROPRIETARY AND CONFIDENTIAL:
 %  The source code contained herein is the property of Gabriele Borghini.
 %  It may not be copied, modified, distributed, or disclosed to any third 
 %  party without the express written consent of the author.
 %
-%  DISCLAIMER:
+% DISCLAIMER:
 %  This software is provided "as is", without warranty of any kind, express
 %  or implied, including but not limited to the warranties of accuracy or
 %  fitness for a particular purpose.
-%  ------------------------------------------------------------------------
-%  ICLOCS2 + IPOPT:
+% 
+% NOTE ON ACADEMIC CONTEXT:
+%  This code is developed solely for academic research, advanced astrodynamics 
+%  studies, and educational purposes at Alma Mater Studiorum - Università di 
+%  Bologna.
+% -------------------------------------------------------------------------
+% DESCRIPTION:
 %  3 stage ascent.
 %   - fixed separation times: t1 = mp1/mdot1, t2 = t1 + mp2/mdot2
 %   - mass, thrust and Isp change as functions of t inside the dynamics
-%   - tf is free between [t2, t2 + burn_max_stadio3];
-%     costo = min tf (with constant thrust it's equivalent to maximize m_f)
+%   - tf is free between [t2, t2 + burn_max_stage3];
+%     cost = min tf (with constant thrust it's equivalent to maximize m_f)
 %
 %  State:   x = [r, theta, phi, v, gamma, chi, m_state]
-%  Control: u = [alpha, beta]
+%  Control: u = [ux, uy, uz]  (Local Cartesian thrust vector components)
 %
 %  Isp, Thrust = vectors [1x3] ([s], [kN]);  stages(i).mp, stages(i).ms [ton]
 % =========================================================================
+%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
+% =========================================================================
 
-%% --- COSTANTS ---
+%% --- CONSTANTS ---
 mu      = 398600.4418;       % [km^3/s^2]
 R_earth = 6378.1;            % [km]
 g0_km   = g0/1000;           % [km/s^2]
@@ -43,7 +49,7 @@ mp = [stages(1).mp, stages(2).mp, stages(3).mp];
 ms = [stages(1).ms, stages(2).ms, stages(3).ms];
 T_kg  = Thrust(:).'/1000;                        % [kg km/s^2]  (1 N = 1e-3 kg km/s^2)
 mdot  = Thrust(:).' ./ (Isp(:).'*g0);            % [kg/s]
-tb    = mp ./ mdot;                              % burnouut times
+tb    = mp ./ mdot;                              % burnout times
 t1    = tb(1);
 t2    = t1 + tb(2);
 tf_max = t2 + tb(3);
@@ -90,13 +96,13 @@ problem.states.xConstraintTol     = [2.0 0.01 0.01 0.05 0.05 0.05 500/1000];
 
 %% --- INPUTS ---
 problem.inputs.N   = 0;
-problem.inputs.ul  = [-pi/2, -pi];
-problem.inputs.uu  = [ pi/2,  pi];
-problem.inputs.rl  = [-0.1, -0.1];
-problem.inputs.ru  = [ 0.1,  0.1];
-problem.inputs.u0l = [pi/2-0.2, chi0-0.3];
-problem.inputs.u0u = [pi/2,     chi0+0.3];
-problem.inputs.uConstraintTol = [0.1, 0.1];
+problem.inputs.ul  = [-1.1, -1.1, -1.1];
+problem.inputs.uu  = [ 1.1,  1.1,  1.1];
+problem.inputs.rl  = [-0.05, -0.05, -0.05];
+problem.inputs.ru  = [ 0.05,  0.05,  0.05];
+problem.inputs.u0l = [cos(0.2), -1.1, -1.1];
+problem.inputs.u0u = [1.1,       1.1,  1.1];
+problem.inputs.uConstraintTol = [1e-3, 1e-3, 1e-3];
 
 %% --- SETPOINTS / CONSTRAINTS ---
 problem.setpoints.states = [];
@@ -104,9 +110,9 @@ problem.setpoints.inputs = [];
 
 problem.constraints.ng_eq    = 0;
 problem.constraints.gTol_eq  = [];
-problem.constraints.gl       = [];
-problem.constraints.gu       = [];
-problem.constraints.gTol_neq = [];
+problem.constraints.gl       = 1;
+problem.constraints.gu       = 1;
+problem.constraints.gTol_neq = 1e-5;
 % [cos(i); inertial orbital energy = 0 (circular orbit, r and gamma fixed)]
 problem.constraints.bl   = [cosd(inc); 0];
 problem.constraints.bu   = [cosd(inc); 0];
@@ -128,16 +134,19 @@ problem.data.t2      = t2;
 problem.data.w       = w_sw;
 
 %% --- GUESS (t=0, t1, t2, tf) ---
-guess.time = [0; t1; t2; tf_guess];
-guess.states(:,1) = [r0;   R_earth+98;  R_earth+297; r_orb];
-guess.states(:,2) = [lon0; lon0+0.03;   lon0+0.10;   lon0+0.11];
-guess.states(:,3) = [lat0; lat0;        lat0;        lat0];
-guess.states(:,4) = [v0;   2.0;         7.0;         7.3];
-guess.states(:,5) = [gam0; 0.8;         0.10;        0.0];
-guess.states(:,6) = [chi0; chi0;        chi0;        chi0];
-guess.states(:,7) = [m0_tot; m0_tot-mp(1); m_end12; m_end12-mdot(3)*11];
-guess.inputs(:,1) = [pi/2; 0.8; 0.2; 0.0];
-guess.inputs(:,2) = [chi0; chi0; chi0; chi0];
+t_nodes = [0; t1; t2; tf_guess];
+x_nodes = [r0,         lon0,      lat0, v0,  gam0, chi0, m0_tot;
+           R_earth+98, lon0+0.03, lat0, 2.0, 0.8,  chi0, m0_tot-mp(1);
+           R_earth+297,lon0+0.10, lat0, 7.0, 0.10, chi0, m_end12;
+           r_orb,      lon0+0.11, lat0, 7.3, 0.0,  chi0, m_end12-mdot(3)*11];
+a_nodes = [pi/2; 0.8; 0.2; 0.0];
+b_nodes = [chi0; chi0; chi0; chi0];
+
+guess.time   = linspace(0, tf_guess, 100).';
+guess.states = interp1(t_nodes, x_nodes, guess.time, 'linear');
+a_interp     = interp1(t_nodes, a_nodes, guess.time, 'linear');
+b_interp     = interp1(t_nodes, b_nodes, guess.time, 'linear');
+guess.inputs = [sin(a_interp), cos(a_interp).*cos(b_interp), cos(a_interp).*sin(b_interp)];
 
 %% --- HANDLES ---
 problem.data.InternalDynamics   = InternalDynamics;
