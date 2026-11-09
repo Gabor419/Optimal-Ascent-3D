@@ -1,22 +1,28 @@
 function [dx, ceq] = ascent_dynamics(x, u, ~, t, vdat)
 %% ========================================================================
 %% PROJECT : 3D 3-DOF Optimal Ascent (ICLOCS2 + IPOPT)
-%  AUTHOR  : Gabriele Borghini - 2026
+%  AUTHOR  : Gabriele Borghini - November 2026
+%  Based on ICLOCS2 problem template (Copyright (c) 2018 Imperial College London, MIT License)
 % =========================================================================
-% PROPRIETARY AND CONFIDENTIAL:
-%  The source code contained herein is the property of Gabriele Borghini.
-%  It may not be copied, modified, distributed, or disclosed to any third 
-%  party without the express written consent of the author.
+% COPYRIGHT AND USAGE RIGHTS:
+%  The source code, problem formulation, and custom scripts contained herein 
+%  are the intellectual property of the author. They may not be copied, 
+%  modified, redistributed, or used for commercial purposes without the 
+%  express written consent of the author.
 %
-% DISCLAIMER:
+% ACADEMIC CONTEXT & THIRD-PARTY TOOLS:
+%  Developed solely for academic research, advanced astrodynamics studies, 
+%  and educational purposes at Alma Mater Studiorum - University of Bologna.
+%  This implementation interfaces with ICLOCS2 (Imperial College London 
+%  Optimal Control Software) and IPOPT, which remain the property of their 
+%  respective authors and are subject to their own licensing terms.
+%
+% DISCLAIMER OF WARRANTY:
 %  This software is provided "as is", without warranty of any kind, express
-%  or implied, including but not limited to the warranties of accuracy or
-%  fitness for a particular purpose.
-% 
-% NOTE ON ACADEMIC CONTEXT:
-%  This code is developed solely for academic research, advanced astrodynamics 
-%  studies, and educational purposes at Alma Mater Studiorum - Università di 
-%  Bologna.
+%  or implied, including but not limited to the warranties of accuracy, 
+%  numerical stability, or fitness for a particular purpose. In no event 
+%  shall the author be liable for any claim or damages arising from the use 
+%  of this software.
 % -------------------------------------------------------------------------
 % DESCRIPTION:
 %  3D Dynamics (rotating sphere) of the ascent phase of a launcher (3S).

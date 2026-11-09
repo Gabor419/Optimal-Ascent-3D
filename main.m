@@ -1,21 +1,27 @@
 %% ========================================================================
 %% PROJECT : 3D 3-DOF Optimal Ascent (ICLOCS2 + IPOPT)
-%  AUTHOR  : Gabriele Borghini - 2026
+%  AUTHOR  : Gabriele Borghini - November 2026
+%  Based on ICLOCS2 problem template (Copyright (c) 2018 Imperial College London, MIT License)
 % =========================================================================
-% PROPRIETARY AND CONFIDENTIAL:
-%  The source code contained herein is the property of Gabriele Borghini.
-%  It may not be copied, modified, distributed, or disclosed to any third 
-%  party without the express written consent of the author.
+% COPYRIGHT AND USAGE RIGHTS:
+%  The source code, problem formulation, and custom scripts contained herein 
+%  are the intellectual property of the author. They may not be copied, 
+%  modified, redistributed, or used for commercial purposes without the 
+%  express written consent of the author.
 %
-% DISCLAIMER:
+% ACADEMIC CONTEXT & THIRD-PARTY TOOLS:
+%  Developed solely for academic research, advanced astrodynamics studies, 
+%  and educational purposes at Alma Mater Studiorum - University of Bologna.
+%  This implementation interfaces with ICLOCS2 (Imperial College London 
+%  Optimal Control Software) and IPOPT, which remain the property of their 
+%  respective authors and are subject to their own licensing terms.
+%
+% DISCLAIMER OF WARRANTY:
 %  This software is provided "as is", without warranty of any kind, express
-%  or implied, including but not limited to the warranties of accuracy or
-%  fitness for a particular purpose.
-% 
-% NOTE ON ACADEMIC CONTEXT:
-%  This code is developed solely for academic research, advanced astrodynamics 
-%  studies, and educational purposes at Alma Mater Studiorum - Università di 
-%  Bologna.
+%  or implied, including but not limited to the warranties of accuracy, 
+%  numerical stability, or fitness for a particular purpose. In no event 
+%  shall the author be liable for any claim or damages arising from the use 
+%  of this software.
 % -------------------------------------------------------------------------
 % DESCRIPTION:
 %  This code is an attempt to adapt the problem described in the report
@@ -30,7 +36,7 @@
 % 
 %  Final validation and open-loop verification of the optimal 
 %  solution are performed via MATLAB's ode45 integrator with strict tolerances 
-%  (RelTol/AbsTol less or equal to 10e-8). 
+%  (RelTol/AbsTol less or equal to 1e-8). 
 % 
 % NOTE ON GEOGRAPHIC/LAUNCH SITE SELECTION:
 %  The choice of the Semnan Space Centre as the launch facility is strictly 
@@ -96,8 +102,8 @@ fprintf('tf               : %.3f s  (S3 burn: %.3f s)\n', tf, tf - t2);
 fprintf('Final altitude   : %.3f km\n', solution.X(end,1) - R_earth);
 fprintf('Rel. velocity    : %.4f km/s\n', solution.X(end,4));
 fprintf('Final γ          : %.4f deg\n', rad2deg(solution.X(end,5)));
-fprintf('Final mass (opt) : %.1f kg   [report: 3868.2 kg]\n', m_phys_sol(end));
-fprintf('Final mass (sim) : %.1f kg\n', m_phys_sim(end));
+fprintf('Final mass (opt) : %.1f kg   [report: 3868.2 kg]\n', m_phys_sol(end)*1000);
+fprintf('Final mass (sim) : %.1f kg\n', m_phys_sim(end)*1000);
 
 % Ideal Delta-V 
 dV3 = Isp(3)*g0*log((m0_tot - sum([stages(1).mp stages(2).mp]) - sum([stages(1).ms stages(2).ms])) / m_phys_sol(end));
@@ -165,7 +171,7 @@ subplot(2, 2, 4); hold on;
 plot(t_opt, m_phys_sol, 'LineWidth', 2, 'Color', [0.8500 0.3250 0.0980]);
 xline(t1, 'k--', 'Stage 1 Sep', 'LabelHorizontalAlignment', 'left');
 xline(t2, 'k--', 'Stage 2 Sep', 'LabelHorizontalAlignment', 'left');
-grid on; xlabel('Time [s]'); ylabel('Mass [kg]');
+grid on; xlabel('Time [s]'); ylabel('Mass [tons]');
 title('Vehicle Physical Mass vs Time'); 
 theme 'light';
 
@@ -312,12 +318,13 @@ Up_sim    = r_sim - R_earth;
 
 figure('Name', '3D Local Trajectory (North-East-Up)', 'Color', 'w'); hold on;
 plot3(North, East, Up, 'r', 'LineWidth', 2.5);
-plot3(North_sim, East_sim, Up_sim, '--', 'LineWidth', 2.5, 'Color', [0.5 0.5 0.5]);
 
 plot3(0, 0, 0, 'k^', 'MarkerFaceColor', 'w', 'MarkerSize', 8);
 plot3(North(idx_sep1), East(idx_sep1), Up(idx_sep1), 'ko', 'MarkerFaceColor', 'y', 'MarkerSize', 6);
 plot3(North(idx_sep2), East(idx_sep2), Up(idx_sep2), 'ko', 'MarkerFaceColor', 'y', 'MarkerSize', 6);
 plot3(North(end), East(end), Up(end), 'kp', 'MarkerFaceColor', 'g', 'MarkerSize', 10);
+
+plot3(North_sim, East_sim, Up_sim, '--', 'LineWidth', 2.5, 'Color', [0.5 0.5 0.5]);
 
 grid on;
 xlabel('North [km]'); ylabel('East [km]'); zlabel('Up (Altitude) [km]');
@@ -390,7 +397,7 @@ plot3(X(end), Y(end), Z(end), 'kp', 'MarkerFaceColor', 'g', 'MarkerSize', 10);
 
 grid on; axis equal;
 xlabel('X [km]'); ylabel('Y [km]'); zlabel('Z [km]');
-title('Proton-M 3D Ascent Trajectory & Target Orbit (ECEF)');
+title('3D Ascent Trajectory & Target Orbit (ECEF)');
 legend('Earth', 'Trajectory (IPOPT)', 'Trajectory (ode45)', 'Target Orbit', 'Launch Pad', 'Orbit Insertion', 'Location', 'best');
 view(60, 20);
 theme 'light';
