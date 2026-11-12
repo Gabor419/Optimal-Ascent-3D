@@ -4,11 +4,19 @@ function options = settings_ascent(varargin)
 %  AUTHOR  : Gabriele Borghini - November 2026
 %  Based on ICLOCS2 settings template (Copyright (c) 2018 Imperial College London, MIT License)
 % =========================================================================
+%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
+% 
 % COPYRIGHT AND USAGE RIGHTS:
 %  The source code, problem formulation, and custom scripts contained herein 
-%  are the intellectual property of the author. They may not be copied, 
-%  modified, redistributed, or used for commercial purposes without the 
-%  express written consent of the author.
+%  are the intellectual property of the author. Permission is hereby granted,
+%  free of charge, to any person obtaining a copy of this software and 
+%  associated documentation files, to deal in the Software without 
+%  restriction, including without limitation the rights to use, copy, 
+%  modify, merge, publish, distribute and sublicense copies of the Software,
+%  and to permit persons to whom the Software is furnished to do so, subject 
+%  to the following conditions:
+%  The above copyright notice and this permission notice shall be included 
+%  in all copies or substantial portions of the Software.
 %
 % ACADEMIC CONTEXT & THIRD-PARTY TOOLS:
 %  Developed solely for academic research, advanced astrodynamics studies, 
@@ -31,8 +39,6 @@ function options = settings_ascent(varargin)
 %  Usage:
 %   options = problem.settings(30)     -> h-method, 30 nodes
 %   options = problem.settings(5, 4)   -> hp-LGR, 5 segments degree 4
-% =========================================================================
-%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
 % =========================================================================
 
 %% Transcription Method
@@ -102,7 +108,7 @@ if nargin == 2
         options.nodes          = varargin{1};
         options.discretization = 'hermite';
     else
-        if length(varargin{1}) == 1
+        if isscalar(varargin{1})
             options.nsegment = varargin{1};
             options.pdegree  = varargin{2};
         else

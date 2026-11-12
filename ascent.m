@@ -4,11 +4,19 @@ function [problem, guess] = ascent(m0_tot, stages, Isp, Thrust, g0, lon0, lat0, 
 %  AUTHOR  : Gabriele Borghini - November 2026
 %  Based on ICLOCS2 problem template (Copyright (c) 2018 Imperial College London, MIT License)
 % =========================================================================
+%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
+% 
 % COPYRIGHT AND USAGE RIGHTS:
 %  The source code, problem formulation, and custom scripts contained herein 
-%  are the intellectual property of the author. They may not be copied, 
-%  modified, redistributed, or used for commercial purposes without the 
-%  express written consent of the author.
+%  are the intellectual property of the author. Permission is hereby granted,
+%  free of charge, to any person obtaining a copy of this software and 
+%  associated documentation files, to deal in the Software without 
+%  restriction, including without limitation the rights to use, copy, 
+%  modify, merge, publish, distribute and sublicense copies of the Software,
+%  and to permit persons to whom the Software is furnished to do so, subject 
+%  to the following conditions:
+%  The above copyright notice and this permission notice shall be included 
+%  in all copies or substantial portions of the Software.
 %
 % ACADEMIC CONTEXT & THIRD-PARTY TOOLS:
 %  Developed solely for academic research, advanced astrodynamics studies, 
@@ -32,11 +40,9 @@ function [problem, guess] = ascent(m0_tot, stages, Isp, Thrust, g0, lon0, lat0, 
 %     cost = min tf (with constant thrust it's equivalent to maximize m_f)
 %
 %  State:   x = [r, theta, phi, v, gamma, chi, m_state]
-%  Control: u = [ux, uy, uz]  (Local Cartesian thrust vector components)
+%  Control: u = [ux, uy, uz]  (Right-handed Local Cartesian thrust vector (UEN))
 %
 %  Isp, Thrust = vectors [1x3] ([s], [kN]);  stages(i).mp, stages(i).ms [ton]
-% =========================================================================
-%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
 % =========================================================================
 
 %% --- CONSTANTS ---
@@ -53,11 +59,11 @@ r_orb   = R_earth + 300;     % [km]
 %% --- STAGING ---
 mp = [stages(1).mp, stages(2).mp, stages(3).mp];
 ms = [stages(1).ms, stages(2).ms, stages(3).ms];
-T_kg  = Thrust(:).'/1000;                        % [kg km/s^2]  (1 N = 1e-3 kg km/s^2)
-mdot  = Thrust(:).' ./ (Isp(:).'*g0);            % [kg/s]
-tb    = mp ./ mdot;                              % burnout times
-t1    = tb(1);
-t2    = t1 + tb(2);
+T_kg   = Thrust(:).'/1000;                       % [kg km/s^2]
+mdot   = Thrust(:).' ./ (Isp(:).'*g0);           % [t/s]
+tb     = mp ./ mdot;                             % burnout times [s]
+t1     = tb(1);
+t2     = t1 + tb(2);
 tf_max = t2 + tb(3);
 w_sw   = 1.5;                                    % [s] step width of tanh
 
@@ -86,11 +92,13 @@ r0   = R_earth;
 v0   = 5e-3;                 % [km/s] non zero to avoid singularity
 gam0 = 89.5*pi/180;          % [rad]
 
-problem.states.x0  = [r0, lon0, lat0, v0, gam0, chi0,     m0_tot];
-problem.states.x0l = [r0, lon0, lat0, v0, gam0, chi0-0.3, m0_tot];
-problem.states.x0u = [r0, lon0, lat0, v0, gam0, chi0+0.3, m0_tot];
+% Fix initial azimuth to chi0 (or allow North-East launch only: chi <= pi/2)
+problem.states.x0  = [r0, lon0, lat0, v0, gam0, chi0, m0_tot];
+problem.states.x0l = [r0, lon0, lat0, v0, gam0, chi0, m0_tot];
+problem.states.x0u = [r0, lon0, lat0, v0, gam0, chi0, m0_tot];
 
-%                    r          theta  phi     v    gamma    chi  m
+% Enforce chi in [0, pi/2] so the trajectory moves North-East (ascending node)
+%                    r          theta  phi     v    gamma    chi     m
 problem.states.xl  = [R_earth,   -pi,  -pi/2,  0,   -pi/2,    0,  m_min];
 problem.states.xu  = [r_orb+20,   pi,   pi/2,  10,   pi/2,   pi,  m0_tot];
 problem.states.xfl = [r_orb,     -pi,  -pi/2,  0,    0,       0,  m_min];
@@ -100,7 +108,7 @@ problem.states.xErrorTol_local    = [1e-4 1e-7 1e-7 1e-6 1e-6 1e-6 1e-3];
 problem.states.xErrorTol_integral = [1e-4 1e-7 1e-7 1e-6 1e-6 1e-6 1e-3];
 problem.states.xConstraintTol     = [2.0 0.01 0.01 0.05 0.05 0.05 500/1000];
 
-%% --- INPUTS ---
+%% --- INPUTS (u = [uU, uE, uN]) ---
 problem.inputs.N   = 0;
 problem.inputs.ul  = [-1.1, -1.1, -1.1];
 problem.inputs.uu  = [ 1.1,  1.1,  1.1];
@@ -119,6 +127,7 @@ problem.constraints.gTol_eq  = [];
 problem.constraints.gl       = 1;
 problem.constraints.gu       = 1;
 problem.constraints.gTol_neq = 1e-5;
+
 % [cos(i); inertial orbital energy = 0 (circular orbit, r and gamma fixed)]
 problem.constraints.bl   = [cosd(inc); 0];
 problem.constraints.bu   = [cosd(inc); 0];
@@ -140,21 +149,24 @@ problem.data.t2      = t2;
 problem.data.w       = w_sw;
 
 %% --- GUESS (t=0, t1, t2, tf) ---
+lat_end = deg2rad(inc);
 t_nodes = [0; t1; t2; tf_guess];
-x_nodes = [r0,         lon0,      lat0, v0,  gam0, chi0, m0_tot;
-           R_earth+98, lon0+0.03, lat0, 2.0, 0.8,  chi0, m0_tot-mp(1);
-           R_earth+297,lon0+0.10, lat0, 7.0, 0.10, chi0, m_end12;
-           r_orb,      lon0+0.11, lat0, 7.3, 0.0,  chi0, m_end12-mdot(3)*11];
+x_nodes = [r0,         lon0,      lat0,            v0,  gam0, chi0,   m0_tot;
+           R_earth+98, lon0+0.03, lat0+0.002,      2.0, 0.8,  chi0,   m0_tot-mp(1);
+           R_earth+297,lon0+0.10, lat_end-0.001,   7.0, 0.10, pi/2,   m_end12;
+           r_orb,      lon0+0.11, lat_end,         7.3, 0.0,  pi/2,   m_end12-mdot(3)*11];
 a_nodes = [pi/2; 0.8; 0.2; 0.0];
-b_nodes = [chi0; chi0; chi0; chi0];
+b_nodes = [chi0; chi0; pi/2; pi/2];
 
 guess.time   = linspace(0, tf_guess, 100).';
 guess.states = interp1(t_nodes, x_nodes, guess.time, 'linear');
 a_interp     = interp1(t_nodes, a_nodes, guess.time, 'linear');
 b_interp     = interp1(t_nodes, b_nodes, guess.time, 'linear');
-guess.inputs = [sin(a_interp), cos(a_interp).*cos(b_interp), cos(a_interp).*sin(b_interp)];
 
-%% --- HANDLES ---
+% Guess inputs in Right-Handed UEN order: [uU, uE, uN]
+guess.inputs = [sin(a_interp), cos(a_interp).*sin(b_interp), cos(a_interp).*cos(b_interp)];
+
+%% --- HANDLES (DO NOT MODIFY - from original ICLOCS2 template) ---
 problem.data.InternalDynamics   = InternalDynamics;
 problem.data.functionfg         = @fg;
 problem.data.plantmodel         = func2str(InternalDynamics);
@@ -181,12 +193,12 @@ function boundaryCost = E_unscaled(~, ~, ~, ~, ~, ~, tf, ~)
 end
 
 function bc = b_unscaled(~, xf, ~, ~, ~, ~, ~, ~, varargin)
-    mu_    = 398600.4418;
-    omega  = 7.2921e-5;
+    mu_   = 398600.4418;
+    omega = 7.2921e-5;
     r = xf(1); phi = xf(3); v = xf(4); gam = xf(5); chi = xf(6);
     vU = v*sin(gam);
-    vN = v*cos(gam)*cos(chi);
     vE = v*cos(gam)*sin(chi) + omega*r*cos(phi);
+    vN = v*cos(gam)*cos(chi);
     cos_i = cos(phi)*vE / sqrt(vN^2+vE^2);
     e_orb = vU^2 + vN^2 + vE^2 - mu_/r;      % Inertial vs circular velocity
     bc = [cos_i; e_orb];                     % Target orbit
@@ -207,7 +219,7 @@ function bc = b_unscaled(~, xf, ~, ~, ~, ~, ~, ~, varargin)
     end
 end
 
-%% ================= SCALED WRAPPERS (DO NOT MODIFY) =================
+%% ================= SCALED WRAPPERS (DO NOT MODIFY - from original ICLOCS2 template) =================
 function stageCost = L(x, xr, u, ur, p, t, vdat)
     if isfield(vdat,'Xscale')
         x = scale_variables_back(x, vdat.Xscale, vdat.Xshift);

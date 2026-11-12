@@ -4,11 +4,19 @@ function [dx, ceq] = ascent_dynamics(x, u, ~, t, vdat)
 %  AUTHOR  : Gabriele Borghini - November 2026
 %  Based on ICLOCS2 problem template (Copyright (c) 2018 Imperial College London, MIT License)
 % =========================================================================
+%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
+% 
 % COPYRIGHT AND USAGE RIGHTS:
 %  The source code, problem formulation, and custom scripts contained herein 
-%  are the intellectual property of the author. They may not be copied, 
-%  modified, redistributed, or used for commercial purposes without the 
-%  express written consent of the author.
+%  are the intellectual property of the author. Permission is hereby granted,
+%  free of charge, to any person obtaining a copy of this software and 
+%  associated documentation files, to deal in the Software without 
+%  restriction, including without limitation the rights to use, copy, 
+%  modify, merge, publish, distribute and sublicense copies of the Software,
+%  and to permit persons to whom the Software is furnished to do so, subject 
+%  to the following conditions:
+%  The above copyright notice and this permission notice shall be included 
+%  in all copies or substantial portions of the Software.
 %
 % ACADEMIC CONTEXT & THIRD-PARTY TOOLS:
 %  Developed solely for academic research, advanced astrodynamics studies, 
@@ -32,19 +40,17 @@ function [dx, ceq] = ascent_dynamics(x, u, ~, t, vdat)
 %   - r >= R_earth is limited by the bounds (xl(1) = R_earth)
 %
 %  State:   x = [r, theta, phi, v, gamma, chi, m_state]  [km, rad, rad, km/s, rad, rad, t]
-%  Control: u = [ux, uy, uz]  (Local Cartesian thrust vector components)
+%  Control: u = [ux, uy, uz]  (Right-handed UEN unit thrust vector)
 %
 %  m_state = mass "without jumps": only decreasing for the propellant burnt.
 %  Physical mass m = m_state - ms1*s1(t) - ms2*s2(t), with s_i scaling tanh()
-% =========================================================================
-%  Copyright (c) 2026 Gabriele Borghini. All Rights Reserved.
 % =========================================================================
 
 mu      = vdat.mu;
 g0      = vdat.g0;          % [km/s^2]
 R_earth = vdat.R_earth;
 H       = vdat.H;
-omega   = 7.2921e-5;
+omega   = 7.2921e-5;        % [rad/s]
 
 %% --- SCALAR CONSTANTS ---
 T1  = vdat.T(1);  T2  = vdat.T(2);  T3  = vdat.T(3);
@@ -57,14 +63,18 @@ tw  = 2*omega;
 
 r     = x(:,1);  phi   = x(:,3);  v   = x(:,4);
 gamma = x(:,5);  chi   = x(:,6);  mst = x(:,7);
-ux    = u(:,1);  uy    = u(:,2);  uz  = u(:,3);
+
+% Right-handed UEN control components
+uU    = u(:,1);  % Up
+uE    = u(:,2);  % East
+uN    = u(:,3);  % North
 t     = t(:) .* ones(size(r));
 
 %% --- STAGING ---
 s1 = 0.5*(1 + tanh((t - vdat.t1)/vdat.w));   % 0 -> 1 at separation 1
 s2 = 0.5*(1 + tanh((t - vdat.t2)/vdat.w));   % 0 -> 1 at separation 2
 
-T    = T1  + (T2-T1)*s1   + (T3-T2)*s2;      % == T1(1-s1)+T2(s1-s2)+T3 s2
+T    = T1  + (T2-T1)*s1   + (T3-T2)*s2;
 mdot = md1 + (md2-md1)*s1 + (md3-md2)*s2;
 m    = mst - vdat.ms(1)*s1 - vdat.ms(2)*s2;  % Physical mass
 
@@ -72,17 +82,19 @@ m    = mst - vdat.ms(1)*s1 - vdat.ms(2)*s2;  % Physical mass
 sg = sin(gamma);  cg = cos(gamma);
 sc = sin(chi);    cc = cos(chi);
 sp = sin(phi);    cp = cos(phi);
-uh = uy.*cc + uz.*sc;                        % cos(chi-beta) = cos(beta-chi)
-uc = uz.*cc - uy.*sc;                        % sin(beta-chi)
+
+% Horizontal thrust projections along velocity (uh) and cross-track (uc, increasing chi)
+uh = uN.*cc + uE.*sc;                        % Along horizontal velocity
+uc = uE.*cc - uN.*sc;                        % Normal to horizontal velocity (towards +chi)
 
 %% --- ATMOSPHERE AND DRAG ---
-v2  = v.^2 + 1e-8;                           % v_s^2
-v_s = sqrt(v2);                              % smooth version of max(v,eps)
+v2  = v.^2 + 1e-8;
+v_s = sqrt(v2);
 D   = (kD .* exp(-(r - R_earth) ./ H)) .* v2;
 
 %% --- THRUST VECTOR PROJECTIONS ---
-T_v     = T .* (ux.*sg + uh.*cg);
-T_gamma = T .* (ux.*cg - uh.*sg);
+T_v     = T .* (uU.*sg + uh.*cg);
+T_gamma = T .* (uU.*cg - uh.*sg);
 T_chi   = T .* uc;
 
 %% --- GRAVITY, CORIOLIS, CENTRIFUGAL ---
@@ -107,6 +119,6 @@ dgamma = (T_gamma./m + (vr - g).*cg + Cor_gamma + Cent_gamma) ./ v_s;
 dchi   = (T_chi./m + ((vr.*cg).*cg).*sc.*(sp./cp) + Cor_chi + Cent_chi) ./ vcg;
 dm     = -mdot;
 
-dx = [dr, dtheta, dphi, dv, dgamma, dchi, dm];
-ceq  = ux.^2 + uy.^2 + uz.^2;
+dx  = [dr, dtheta, dphi, dv, dgamma, dchi, dm];
+ceq = uU.^2 + uE.^2 + uN.^2;
 end
